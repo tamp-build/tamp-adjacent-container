@@ -1,0 +1,149 @@
+# Tamp.AdjacentContainer
+
+> Fixture-side dual-mode container acquisition for Tamp adopters. Tests reach an adjacent Postgres / Azurite / Service Bus emulator via a standardized env-var contract on CI, and spawn a local Testcontainers instance on dev workstations — same connection-string shape, automatic disposal of locally-spawned containers only.
+
+| Package | Status |
+|---|---|
+| `Tamp.AdjacentContainer` | 0.1.0 (initial) |
+
+## Why this exists
+
+You have integration tests that need a real Postgres / Azurite / Service Bus to run against. Locally on your dev machine, Testcontainers spins one up — fine. Then your CI agent runs Docker-in-Docker without a mounted host socket, the agent can't spawn sibling containers, and your test class fails at fixture init with `DockerUnavailableException` — or worse, hangs for 90 seconds before timing out.
+
+The escape valve every adopter eventually reaches: provision a sidecar Postgres on the agent host, export a connection string via env var, refactor the test fixtures to consume that env var when present and fall back to Testcontainers when absent. The pattern is identical across every project that hits this wall.
+
+`Tamp.AdjacentContainer` is that pattern, expressed once in the framework so every adopter doesn't get the disposal-ownership semantics subtly wrong.
+
+This package pairs with — but does not depend on — two siblings:
+
+- **[Tamp.Testcontainers.V4](https://github.com/tamp-build/tamp-testcontainers)** — a synchronous Docker reachability probe (`Testcontainers.Probe()`) that fails fast with an actionable diagnostic before testcontainers-dotnet hangs. Use as a `.OnlyWhen(...)` gate on a `Target IntegrationTests`.
+- **Tamp.AdjacentContainer.Provisioning** *(landing in v0.2.0)* — the CI-agent side. Generates compose, brings up the sidecar stack, exports the env vars this package reads, tears down in the build target's `Finally`.
+
+## Install
+
+```bash
+dotnet add package Tamp.AdjacentContainer
+```
+
+Multi-targets net8/9/10.
+
+## The acquisition contract
+
+Every resource follows the same dual-mode flow:
+
+1. Probe the resource-specific env var (default keys below; override with `.WithEnvironmentOverride(...)`).
+2. If the env var is set → return a `TampConnection` with `Mode = Adjacent`. Disposal is a no-op (you don't own the resource).
+3. If absent and local fallback is enabled (default) → spawn the resource via Testcontainers, return a `TampConnection` with `Mode = LocalSpawned`. Disposal stops and removes the container.
+4. If neither path works → throw `TampAdjacentContainerUnavailableException` with an actionable diagnostic.
+
+## Examples
+
+### Postgres
+
+```csharp
+using Tamp.AdjacentContainer;
+
+await using var pg = await TampAdjacentContainer
+    .ForPostgres()
+    .WithDatabase("strata_test")
+    .AcquireAsync();
+
+// pg.ConnectionString — Npgsql-compatible regardless of mode
+// pg.Mode — Adjacent (env var supplied) or LocalSpawned (Testcontainers)
+```
+
+Default env var: **`TAMP_PG_CONNECTION`**. Override with `.WithEnvironmentOverride("STRATA_TEST_PG_CONNECTION")` if your pipeline already uses a different name.
+
+Default local-fallback image: `postgres:16-alpine`. Override with `.WithLocalFallback("postgres:15-alpine")` for older schema-version testing.
+
+### Azurite (Azure Storage emulator)
+
+```csharp
+await using var az = await TampAdjacentContainer
+    .ForAzurite()
+    .AcquireAsync();
+
+var blob = new BlobServiceClient(az.ConnectionString);
+```
+
+Default env var: **`TAMP_AZURITE_CONNECTION`**. Local-fallback image: `mcr.microsoft.com/azure-storage/azurite:latest`.
+
+### Service Bus emulator
+
+```csharp
+await using var sb = await TampAdjacentContainer
+    .ForServiceBusEmulator()
+    .AcquireAsync();
+
+var client = new ServiceBusClient(sb.ConnectionString);
+```
+
+Default env var: **`TAMP_SBUS_CONNECTION`**. Local-fallback image: `mcr.microsoft.com/azure-messaging/servicebus-emulator:latest`. The builder accepts Microsoft's EULA by default — use `.WithEulaAcceptance(false)` to opt out (the spawn then fails per Microsoft's contract).
+
+## The env-var contract
+
+| Resource | Default env var | Connection-string shape |
+|---|---|---|
+| Postgres | `TAMP_PG_CONNECTION` | Npgsql (`Host=...;Database=...;Username=...;Password=...`) |
+| Azurite | `TAMP_AZURITE_CONNECTION` | Azure Storage (`DefaultEndpointsProtocol=...;AccountName=...;...`) |
+| Service Bus emulator | `TAMP_SBUS_CONNECTION` | Service Bus (`Endpoint=sb://...;SharedAccessKeyName=...;...`) |
+
+Adopters pin these conventions in their CI pipeline step — the test process inherits the env vars, fixtures pick them up automatically, no per-test wiring needed.
+
+## CI-only enforcement: disable the local-fallback
+
+On a CI agent, "Docker daemon unreachable → spawn fails → cascade of timeouts" is a *worse* failure mode than "env var missing → fail fast with a clear remediation message." Disable the fallback on CI:
+
+```csharp
+await using var pg = await TampAdjacentContainer
+    .ForPostgres()
+    .DisableLocalFallback()  // Adjacent mode only — no Docker spawn attempts
+    .AcquireAsync();
+```
+
+When the env var is absent in this mode, the builder throws immediately with the env-var key, resource name, and remediation text in the exception message.
+
+## Disposal semantics
+
+`TampConnection` is `IAsyncDisposable`. Tests pair it with `await using` so resources tear down at scope exit:
+
+- **`Adjacent` mode** — `DisposeAsync` is a no-op. You never tear down resources you didn't provision.
+- **`LocalSpawned` mode** — `DisposeAsync` stops and removes the Testcontainers instance.
+
+`DisposeAsync` is idempotent. Multiple calls are safe.
+
+## Errors
+
+| Exception | When | Caller action |
+|---|---|---|
+| `TampAdjacentContainerUnavailableException` | env var absent AND (fallback disabled OR Docker unreachable) | Read the message — it contains the env-var key and resource name. Wire the env var in your pipeline, or make Docker reachable, or fix the fallback toggle. |
+| `ArgumentException` | empty / null env-var key passed to `WithEnvironmentOverride(...)` | Pass a real key. |
+
+## What this package is not
+
+- **It is not a Postgres / Azurite / Service Bus client.** Bring your own (`Npgsql`, `Azure.Storage.Blobs`, `Azure.Messaging.ServiceBus`) and pass the connection string in.
+- **It does not run schema migrations or seed data.** That's project-side. The connection is ready to use; what you put in it is your job.
+- **It does not handle test isolation** (per-test transactions, snapshot/restore, per-class containers). That's xUnit / NUnit / collection-fixture territory.
+- **It does not provision the sidecar Postgres on your CI agent.** That's `Tamp.AdjacentContainer.Provisioning` (v0.2.0). Today you write a compose step in your pipeline that exports the env var; this package does the consumption half.
+
+## Companion: `Tamp.Testcontainers.V4`
+
+When the local-fallback path is enabled and Docker is unreachable, the spawn fails with whatever message testcontainers-dotnet produced — usually a 30-second timeout. Add `Tamp.Testcontainers.V4`'s probe as a `Target` gate to fail at build-target boundaries instead of fixture-init boundaries:
+
+```csharp
+Target IntegrationTests => _ => _
+    .OnlyWhen(() => Testcontainers.Probe().IsAvailable,
+              "Docker unreachable — skipping integration tests on this agent.")
+    .DependsOn(Compile)
+    .Executes(() => DotNet.Test(...));
+```
+
+The probe and `Tamp.AdjacentContainer` are independent — use either, both, or neither depending on your CI shape.
+
+## Releasing
+
+Releases follow the [Tamp dogfood pattern](MAINTAINERS.md): bump `<Version>` in `Directory.Build.props`, tag `v<X.Y.Z>`, GitHub Actions runs `dotnet tamp Ci` then `dotnet tamp Push`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
