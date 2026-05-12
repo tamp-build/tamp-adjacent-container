@@ -90,6 +90,31 @@ Default env var: **`TAMP_SBUS_CONNECTION`**. Local-fallback image: `mcr.microsof
 
 Adopters pin these conventions in their CI pipeline step — the test process inherits the env vars, fixtures pick them up automatically, no per-test wiring needed.
 
+## How configuration resolves
+
+When `AcquireAsync()` runs, the builder resolves the connection in this order:
+
+1. **Explicit env-var override** — if `.WithEnvironmentOverride("CUSTOM_KEY")` was chained AND `CUSTOM_KEY` is set non-empty, its value is the connection string. `Mode = Adjacent`.
+2. **Default env var** — `TAMP_PG_CONNECTION` / `TAMP_AZURITE_CONNECTION` / `TAMP_SBUS_CONNECTION` per resource. If set non-empty, its value is the connection string. `Mode = Adjacent`.
+3. **Local fallback** — unless `.DisableLocalFallback()` was chained, the resource is spawned via Testcontainers. `Mode = LocalSpawned`.
+4. **Failure** — `TampAdjacentContainerUnavailableException` is thrown with `Resource` and `EnvVarKey` populated, and a message naming the env-var key and remediation.
+
+**Resource-specific builder options (`WithDatabase`, `WithUsername`, `WithPassword`, `WithLocalFallback(image: ...)`) apply ONLY to the local-fallback spawn.** In adjacent mode they are ignored — the env-var-supplied connection string is authoritative end-to-end. If your env var encodes `Database=strata_dev` but you chained `.WithDatabase("strata_test")`, your tests hit `strata_dev` silently. Pin the database via the env-var value, not the builder, when running on a sidecar.
+
+## Schema state in adjacent mode
+
+`Tamp.AdjacentContainer` does NOT reset state between acquisitions. In `LocalSpawned` mode you get a fresh container per acquisition by construction, but in `Adjacent` mode the sidecar Postgres / Azurite / Service Bus survives across test runs and carries whatever schema and data the previous run left behind.
+
+This is fixture-side responsibility, not the framework's. Three common patterns, picked per your tradeoffs:
+
+| Pattern | Speed | Caveat |
+|---|---|---|
+| `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` per test | Slow (full schema recreate per test) | Always correct; the safe default |
+| Per-test unique schema name (e.g. `test_${Guid.NewGuid():N}`) | Fast | Fixtures must scope all DDL/DML to the schema; reference-data seeders must too |
+| `BEGIN; ... ROLLBACK;` per test | Fastest | DDL (CREATE TABLE, etc.) doesn't roll back in Postgres; works only for DML-only tests |
+
+Pick once per test class and stay consistent. v1.0+ may surface a `pg.ResetAsync()` hook to standardize pattern 1, but no v0.x commitment.
+
 ## CI-only enforcement: disable the local-fallback
 
 On a CI agent, "Docker daemon unreachable → spawn fails → cascade of timeouts" is a *worse* failure mode than "env var missing → fail fast with a clear remediation message." Disable the fallback on CI:

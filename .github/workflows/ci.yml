@@ -54,13 +54,13 @@ jobs:
             nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore Tamp.Http.slnx
+        run: dotnet restore Tamp.AdjacentContainer.slnx
 
       - name: Build
-        run: dotnet build Tamp.Http.slnx --no-restore --configuration Release
+        run: dotnet build Tamp.AdjacentContainer.slnx --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test Tamp.Http.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults
+        run: dotnet test Tamp.AdjacentContainer.slnx --no-build --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults
 
       - name: Upload test results
         if: always()

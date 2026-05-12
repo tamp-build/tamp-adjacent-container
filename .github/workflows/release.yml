@@ -1,6 +1,6 @@
 name: Release
 
-# Dogfood release: this workflow builds AND publishes Tamp.Http
+# Dogfood release: this workflow builds AND publishes Tamp.AdjacentContainer
 # *using Tamp itself*. The dotnet-tamp global tool is installed and runs
 # the Build.cs targets — same pattern Tamp's own self-hosted CI uses.
 
