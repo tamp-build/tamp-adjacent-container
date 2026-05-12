@@ -9,8 +9,13 @@
   <PropertyGroup Label="Package">
     <PackageId>Tamp.AdjacentContainer</PackageId>
     <Description>Fixture-side dual-mode container acquisition for Tamp adopters. Tests reach an adjacent Postgres / Azurite / Service Bus emulator via a standardized env var contract on CI, and spawn a local Testcontainers instance on dev workstations — same connection-string shape, automatic disposal of locally-spawned containers only. Solves the Docker-in-Docker "sibling container trap" once instead of in every adopter. Companion to Tamp.Testcontainers.V4 (probe) and Tamp.AdjacentContainer.Provisioning (CI-side stack-up).</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="$(TampCorePath)" Condition="'$(TampCoreMode)' == 'project'" />
