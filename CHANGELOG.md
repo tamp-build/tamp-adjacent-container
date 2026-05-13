@@ -5,6 +5,19 @@ All notable changes to **Tamp.AdjacentContainer** are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-05-13
+
+### Added
+
+- README: new "xUnit fixture-lifecycle interaction" section (TAM-171). Documents
+  the `IAsyncLifetime` per-test-instance vs `IClassFixture<T>` class-scoped
+  decision that adjacent mode forces. Includes the broken pattern, the right
+  pattern, the failure-mode error message so adopters can google their way to
+  this README, and one-line NUnit / MSTest analogues for cross-framework
+  generalization. Patch authored by strata-scott from the Strata canary
+  pilot, where the issue surfaced against a real `DROP DATABASE ... WITH (FORCE)`
+  setup in Strata's Tamp.AdjacentContainer canary tests.
+
 ## [0.1.0] - 2026-05-12
 
 ### Added
