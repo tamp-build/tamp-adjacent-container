@@ -113,7 +113,7 @@ This is fixture-side responsibility, not the framework's. Three common patterns,
 | Per-test unique schema name (e.g. `test_${Guid.NewGuid():N}`) | Fast | Fixtures must scope all DDL/DML to the schema; reference-data seeders must too |
 | `BEGIN; ... ROLLBACK;` per test | Fastest | DDL (CREATE TABLE, etc.) doesn't roll back in Postgres; works only for DML-only tests |
 
-Pick once per test class and stay consistent. v1.0+ may surface a `pg.ResetAsync()` hook to standardize pattern 1, but no v0.x commitment.
+Pick once per test class and stay consistent. v1.0+ may surface a `pg.ResetAsync()` hook to standardize pattern 1, but no v0.x commitment. See [docs/reset-strategies-and-future-resetasync-hook.md](docs/reset-strategies-and-future-resetasync-hook.md) for the design exploration: full pros/cons of each pattern, the hypothetical `ResetAsync` shape, and the 2-adopter rule we're applying before standardizing.
 
 ## xUnit fixture-lifecycle interaction
 
