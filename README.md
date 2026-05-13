@@ -115,6 +115,77 @@ This is fixture-side responsibility, not the framework's. Three common patterns,
 
 Pick once per test class and stay consistent. v1.0+ may surface a `pg.ResetAsync()` hook to standardize pattern 1, but no v0.x commitment.
 
+## xUnit fixture-lifecycle interaction
+
+Practical addendum to "Schema state in adjacent mode" for xUnit consumers. The other test frameworks have the same issue with different attribute names ; see the bottom of this section.
+
+xUnit creates a fresh test-class instance per test method. The instinctive pattern is to implement `IAsyncLifetime` directly on the test class and put `AcquireAsync()` + destructive setup (`DROP DATABASE ... WITH (FORCE)`, schema reset, seed reload) in `InitializeAsync`. That works fine in `LocalSpawned` mode because each test gets its own freshly-spawned container ; per-test resets are part of the lifecycle by construction.
+
+In `Adjacent` mode the resource is shared across all test-class instances. Per-test destructive setup terminates connections the *prior* test instance still has in flight. The next test fails with:
+
+```
+Npgsql.NpgsqlException: Exception while reading from stream
+---- System.IO.IOException: Unable to read data from the transport connection: An established connection was aborted by the software in your host machine.
+```
+
+It looks like a transport / pool issue, not a fixture-pattern issue. The actionable signal is buried.
+
+**Wrong (per-test `IAsyncLifetime` with destructive setup):**
+
+```csharp
+public class AuditTests : IAsyncLifetime
+{
+    private TampConnection? _pg;
+
+    public async Task InitializeAsync()
+    {
+        _pg = await TampAdjacentContainer.ForPostgres().AcquireAsync();
+        // DROP DATABASE WITH (FORCE) per-test kills the prior instance's pooled connections.
+        await CreateFreshDbAsync(_pg.ConnectionString, "audit_test");
+    }
+    // ...
+}
+```
+
+**Right (class-scoped `IClassFixture<T>`):**
+
+```csharp
+public class AuditFixture : IAsyncLifetime
+{
+    public TampConnection? Pg { get; private set; }
+    public string ConnectionString { get; private set; } = "";
+
+    public async Task InitializeAsync()
+    {
+        Pg = await TampAdjacentContainer.ForPostgres().AcquireAsync();
+        ConnectionString = await CreateFreshDbAsync(Pg.ConnectionString, "audit_test");
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (Pg is not null) await Pg.DisposeAsync();
+    }
+}
+
+public class AuditTests : IClassFixture<AuditFixture>
+{
+    private readonly AuditFixture _fixture;
+    public AuditTests(AuditFixture fixture) { _fixture = fixture; }
+    // ...
+}
+```
+
+The destructive setup runs once per test class, not once per test, and never races a still-in-flight prior instance.
+
+For tests inside a *collection* (cross-class state), use `ICollectionFixture<T>` with the same shape ; the fixture is then shared across every test class in the collection.
+
+**Same shape, other frameworks:**
+
+- **NUnit** ; put the destructive setup in `[OneTimeSetUp]` (class-scoped), not `[SetUp]` (per-test).
+- **MSTest** ; put the destructive setup in `[ClassInitialize]`, not `[TestInitialize]`.
+
+Per-test setup is the wrong scope for *any* destructive operation against an adjacent resource, regardless of test framework.
+
 ## CI-only enforcement: disable the local-fallback
 
 On a CI agent, "Docker daemon unreachable → spawn fails → cascade of timeouts" is a *worse* failure mode than "env var missing → fail fast with a clear remediation message." Disable the fallback on CI:
