@@ -27,6 +27,26 @@ dotnet add package Tamp.AdjacentContainer
 
 Multi-targets net8/9/10.
 
+## Minimal adoption snippet
+
+```csharp
+using Tamp.AdjacentContainer;
+
+// One handle for the entire test/build process. Disposes the docker-compose
+// stack at end of build if it was launched locally; reads env vars and skips
+// the stack-up step entirely in CI.
+await using var pg = await TampConnection.ForPostgres(
+    composeFile: RootDirectory / "docker-compose.yml",
+    serviceName: "postgres");
+
+// pg.ConnectionString now points at the live database — either the local
+// container that just started, or the CI-provided TAMP_PG_CONNECTION value.
+using var conn = new NpgsqlConnection(pg.ConnectionString);
+await conn.OpenAsync();
+```
+
+**Same code, two environments.** Locally: `docker compose up -d postgres` runs at startup, `docker compose down` at dispose. In CI (where `TAMP_PG_CONNECTION` is preset): the env var is honored and no docker is touched. Adopters write one path; the satellite handles the dual-mode flow. Companion factories: `ForAzurite`, `ForServiceBusEmulator`.
+
 ## The acquisition contract
 
 Every resource follows the same dual-mode flow:
