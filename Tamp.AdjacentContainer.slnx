@@ -10,6 +10,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Tamp.AdjacentContainer/Tamp.AdjacentContainer.csproj" />
+    <Project Path="src/Tamp.AdjacentContainer.Local/Tamp.AdjacentContainer.Local.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Tamp.AdjacentContainer.Tests/Tamp.AdjacentContainer.Tests.csproj" />

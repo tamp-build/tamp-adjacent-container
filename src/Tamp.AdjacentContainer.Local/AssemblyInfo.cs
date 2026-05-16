@@ -1,4 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Tamp.AdjacentContainer.Local")]
 [assembly: InternalsVisibleTo("Tamp.AdjacentContainer.Tests")]

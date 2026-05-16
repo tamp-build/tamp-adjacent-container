@@ -8,7 +8,7 @@
 
   <PropertyGroup Label="Package">
     <PackageId>Tamp.AdjacentContainer</PackageId>
-    <Description>Fixture-side dual-mode container acquisition for Tamp adopters. Tests reach an adjacent Postgres / Azurite / Service Bus emulator via a standardized env var contract on CI, and spawn a local Testcontainers instance on dev workstations — same connection-string shape, automatic disposal of locally-spawned containers only. Solves the Docker-in-Docker "sibling container trap" once instead of in every adopter. Companion to Tamp.Testcontainers.V4 (probe) and Tamp.AdjacentContainer.Provisioning (CI-side stack-up).</Description>
+    <Description>Host-mode adjacent-container contracts for Tamp adopters — the abstract AdjacentContainerBuilder, TampConnection, AdjacentMode, and a host-only TampHostConnection.FromEnvironment helper. Pulls NO Testcontainers dependency, so build-side projects can read connection-string env vars without inheriting the Docker.DotNet namespace (which shadows Tamp.NetCli.V10.DotNet). For the local-fallback dual-mode story (Postgres / Azurite / Service Bus spawned via Testcontainers on dev workstations), add the companion package Tamp.AdjacentContainer.Local.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -20,11 +20,6 @@
   <ItemGroup>
     <ProjectReference Include="$(TampCorePath)" Condition="'$(TampCoreMode)' == 'project'" />
     <PackageReference Include="Tamp.Core" Condition="'$(TampCoreMode)' == 'package'" />
-    <PackageReference Include="Tamp.Testcontainers.V4" />
-    <PackageReference Include="Testcontainers" />
-    <PackageReference Include="Testcontainers.PostgreSql" />
-    <PackageReference Include="Testcontainers.Azurite" />
-    <PackageReference Include="Testcontainers.ServiceBus" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>Tamp.AdjacentContainer</RootNamespace>
+    <AssemblyName>Tamp.AdjacentContainer.Local</AssemblyName>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package">
+    <PackageId>Tamp.AdjacentContainer.Local</PackageId>
+    <Description>Local-fallback half of Tamp.AdjacentContainer's dual-mode acquisition. Provides the concrete Postgres / Azurite / Service Bus emulator builders (spawned via Testcontainers when the adjacent env var is missing) plus the TampAdjacentContainer.ForXxx() facade. Pulls Testcontainers as a hard runtime dep — add this package ONLY in projects that actually need the local-spawn path (typically test projects). Build-side projects that only read connection-string env vars should reference Tamp.AdjacentContainer alone and use TampHostConnection.FromEnvironment.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Tamp.AdjacentContainer\Tamp.AdjacentContainer.csproj" />
+    <PackageReference Include="Tamp.Testcontainers.V4" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Azurite" />
+    <PackageReference Include="Testcontainers.ServiceBus" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

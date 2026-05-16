@@ -2,9 +2,12 @@
 
 > Fixture-side dual-mode container acquisition for Tamp adopters. Tests reach an adjacent Postgres / Azurite / Service Bus emulator via a standardized env-var contract on CI, and spawn a local Testcontainers instance on dev workstations — same connection-string shape, automatic disposal of locally-spawned containers only.
 
-| Package | Status |
-|---|---|
-| `Tamp.AdjacentContainer` | 0.1.0 (initial) |
+| Package | Status | What it ships |
+|---|---|---|
+| `Tamp.AdjacentContainer` | 0.2.0 | Host-mode contracts: `AdjacentContainerBuilder<T>`, `TampConnection`, `TampHostConnection.FromEnvironment(...)`. **No Testcontainers dep.** Pick this for build / orchestration projects that only read connection-string env vars. |
+| `Tamp.AdjacentContainer.Local` | 0.2.0 | Local-fallback dual-mode: the concrete Postgres / Azurite / Service Bus emulator builders + `TampAdjacentContainer.ForXxx()` facade. Pulls Testcontainers. Pick this for test projects that spawn containers on dev workstations and consume sidecars on CI. |
+
+> **Upgrading from 0.1.x?** See the [migration note in CHANGELOG.md](CHANGELOG.md#020---2026-05-15). Test projects switch their `<PackageReference>` to `Tamp.AdjacentContainer.Local` with no code changes ; build-side projects can drop the dep entirely if they only need env-var acquisition.
 
 ## Why this exists
 
@@ -17,15 +20,39 @@ The escape valve every adopter eventually reaches: provision a sidecar Postgres 
 This package pairs with — but does not depend on — two siblings:
 
 - **[Tamp.Testcontainers.V4](https://github.com/tamp-build/tamp-testcontainers)** — a synchronous Docker reachability probe (`Testcontainers.Probe()`) that fails fast with an actionable diagnostic before testcontainers-dotnet hangs. Use as a `.OnlyWhen(...)` gate on a `Target IntegrationTests`.
-- **Tamp.AdjacentContainer.Provisioning** *(landing in v0.2.0)* — the CI-agent side. Generates compose, brings up the sidecar stack, exports the env vars this package reads, tears down in the build target's `Finally`.
+- **Tamp.AdjacentContainer.Provisioning** *(planned)* — the CI-agent side. Generates compose, brings up the sidecar stack, exports the env vars this package reads, tears down in the build target's `Finally`. Not in 0.2.0 ; 0.2.0 was the package-split release.
 
 ## Install
 
+Pick the package that matches the project consuming it:
+
 ```bash
+# Test projects — full dual-mode (env-var probe → Testcontainers fallback).
+# Transitively pulls Tamp.AdjacentContainer + Testcontainers.*.
+dotnet add package Tamp.AdjacentContainer.Local
+
+# Build / orchestration projects — host-mode only (no Docker, no Testcontainers).
+# Use TampHostConnection.FromEnvironment(...) for the acquisition.
 dotnet add package Tamp.AdjacentContainer
 ```
 
-Multi-targets net8/9/10.
+Both packages multi-target net8 / net9 / net10.
+
+### Why the split?
+
+The `Testcontainers.*` packages define a top-level `DotNet` namespace. Any
+project that pulled `Tamp.AdjacentContainer` AND did `using Tamp.NetCli.V10;`
+(typical Build.cs shape) hit a namespace collision:
+
+```
+error CS0234: The type or namespace name 'Restore' does not exist
+              in the namespace 'DotNet'
+```
+
+…because C# resolves the `DotNet` namespace ahead of the `Tamp.NetCli.V10.DotNet`
+static class. Splitting the local-fallback path into its own package keeps
+build-side projects clean ; test projects opt in explicitly via
+`Tamp.AdjacentContainer.Local`.
 
 ## Minimal adoption snippet
 
@@ -46,6 +73,28 @@ await conn.OpenAsync();
 ```
 
 **Same code, two environments.** Locally: `docker compose up -d postgres` runs at startup, `docker compose down` at dispose. In CI (where `TAMP_PG_CONNECTION` is preset): the env var is honored and no docker is touched. Adopters write one path; the satellite handles the dual-mode flow. Companion factories: `ForAzurite`, `ForServiceBusEmulator`.
+
+### Host-only acquisition (`Tamp.AdjacentContainer` alone)
+
+Build / orchestration projects that only ever run against an adjacent sidecar
+(never a locally-spawned container) skip `Tamp.AdjacentContainer.Local` entirely
+and use `TampHostConnection.FromEnvironment`:
+
+```csharp
+using Tamp.AdjacentContainer;
+
+// Throws TampAdjacentContainerUnavailableException with a remediation message
+// (env-var name + pointer at .Local) if TAMP_PG_CONNECTION is unset.
+await using var pg = TampHostConnection.FromEnvironment(
+    environmentVariableKey: "TAMP_PG_CONNECTION",
+    resourceName: "postgres");
+
+// pg.ConnectionString is the env-var value verbatim. pg.Mode == Adjacent.
+// pg.DisposeAsync() is a no-op — host-only never owns the resource lifecycle.
+```
+
+No Testcontainers dependency, no Docker, no namespace shadowing in any Build.cs
+that does `using Tamp.NetCli.V10;`.
 
 ## The acquisition contract
 

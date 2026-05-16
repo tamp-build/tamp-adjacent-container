@@ -62,14 +62,19 @@ class Build : TampBuild
 
     Target Pack => _ => _
         .DependsOn(nameof(Test))
-        .Executes(() => DotNet.Pack(s =>
+        .Executes(() => new[]
         {
-            s.SetProject(RootDirectory / "src" / "Tamp.AdjacentContainer" / "Tamp.AdjacentContainer.csproj");
+            RootDirectory / "src" / "Tamp.AdjacentContainer" / "Tamp.AdjacentContainer.csproj",
+            RootDirectory / "src" / "Tamp.AdjacentContainer.Local" / "Tamp.AdjacentContainer.Local.csproj",
+        }
+        .Select(proj => DotNet.Pack(s =>
+        {
+            s.SetProject(proj);
             s.SetConfiguration(Configuration);
             s.SetNoBuild(true);
             s.SetOutput(Artifacts);
             if (!string.IsNullOrEmpty(Version)) s.SetProperty("Version", Version);
-        }));
+        })));
 
     Target Push => _ => _
         .DependsOn(nameof(Pack))

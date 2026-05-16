@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tamp.AdjacentContainer\Tamp.AdjacentContainer.csproj" />
+    <ProjectReference Include="..\..\src\Tamp.AdjacentContainer.Local\Tamp.AdjacentContainer.Local.csproj" />
   </ItemGroup>
 
 </Project>
