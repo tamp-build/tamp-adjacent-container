@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Source link">
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
   </ItemGroup>
 
   <ItemGroup Label="Tamp packages">
@@ -30,6 +30,10 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
     <PackageVersion Include="Testcontainers.Azurite" Version="4.11.0" />
     <PackageVersion Include="Testcontainers.ServiceBus" Version="4.11.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Transitive security pins — SSH.NET pulled transitively via Testcontainers; 2025.1.0 carries GHSA-mggc-4xg6-vcxf / GHSA-q939-rpr3-3284 (NU1903).">
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
   </ItemGroup>
 
 </Project>
