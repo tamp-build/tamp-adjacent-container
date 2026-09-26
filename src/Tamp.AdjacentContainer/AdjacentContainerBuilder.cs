@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -94,4 +95,13 @@ public abstract class AdjacentContainerBuilder<TSelf> where TSelf : AdjacentCont
     /// and a non-null disposal hook that stops + removes the container.
     /// </summary>
     protected abstract Task<TampConnection> SpawnLocalAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Per-worker Docker labels every derived builder stamps on its spawned container (#18) so
+    /// concurrent containers from parallel worktrees are attributable and cleanable per worker.
+    /// Testcontainers already assigns random names + ephemeral host ports, so this is attribution,
+    /// not collision-avoidance — derived builders must NOT pin a fixed name or host port.
+    /// </summary>
+    protected IReadOnlyDictionary<string, string> WorkerLabels()
+        => ContainerLabels.ForWorker(ResourceName, WorkerScope.Discriminator());
 }

@@ -44,6 +44,7 @@ public sealed class AzuriteAdjacentBuilder : AdjacentContainerBuilder<AzuriteAdj
     {
         var builder = new AzuriteBuilder(_image);
         if (_inMemoryPersistence) builder = builder.WithInMemoryPersistence();
+        foreach (var (k, v) in WorkerLabels()) builder = builder.WithLabel(k, v);   // #18 per-worker attribution
 
         var container = builder.Build();
         await container.StartAsync(cancellationToken).ConfigureAwait(false);
