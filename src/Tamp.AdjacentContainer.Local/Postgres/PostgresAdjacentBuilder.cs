@@ -59,11 +59,12 @@ public sealed class PostgresAdjacentBuilder : AdjacentContainerBuilder<PostgresA
     /// <inheritdoc />
     protected override async Task<TampConnection> SpawnLocalAsync(CancellationToken cancellationToken)
     {
-        var container = new PostgreSqlBuilder(_image)
+        var builder = new PostgreSqlBuilder(_image)
             .WithDatabase(_databaseName)
             .WithUsername(_username)
-            .WithPassword(_password)
-            .Build();
+            .WithPassword(_password);
+        foreach (var (k, v) in WorkerLabels()) builder = builder.WithLabel(k, v);   // #18 per-worker attribution
+        var container = builder.Build();
 
         await container.StartAsync(cancellationToken).ConfigureAwait(false);
 

@@ -44,6 +44,7 @@ public sealed class ServiceBusEmulatorAdjacentBuilder : AdjacentContainerBuilder
     {
         var builder = new ServiceBusBuilder(_image);
         if (_acceptEula) builder = builder.WithAcceptLicenseAgreement(true);
+        foreach (var (k, v) in WorkerLabels()) builder = builder.WithLabel(k, v);   // #18 per-worker attribution
 
         var container = builder.Build();
         await container.StartAsync(cancellationToken).ConfigureAwait(false);
